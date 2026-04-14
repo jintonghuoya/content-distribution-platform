@@ -1,0 +1,36 @@
+sources:
+  weibo:
+    enabled: true
+    interval_seconds: 300
+    max_items: 50
+    description: "微博热搜榜"
+
+  baidu:
+    enabled: true
+    interval_seconds: 600
+    max_items: 30
+    description: "百度热搜榜"
+
+  zhihu:
+    enabled: true
+    interval_seconds: 600
+    max_items: 30
+    description: "知乎热榜"
+
+  douyin:
+    enabled: false
+    interval_seconds: 600
+    max_items: 30
+    description: "抖音热点榜（需配置cookie）"
+
+  bilibili:
+    enabled: false
+    interval_seconds: 600
+    max_items: 30
+    description: "B站热门榜"
+
+  toutiao:
+    enabled: false
+    interval_seconds: 600
+    max_items: 30
+    description: "今日头条热榜"

@@ -1,0 +1,24 @@
+# 默认过滤规则配置
+# 用于初始化 filter registry 的默认配置
+
+filters:
+  keyword_blacklist:
+    enabled: true
+    keywords:
+      - "广告"
+      - "推广"
+      - "抽奖"
+      - "转发"
+      - "点击领取"
+
+  heat_threshold:
+    enabled: true
+    min_heat: 100
+    max_heat: 1000000
+
+  source_weight:
+    enabled: true
+    weights:
+      weibo: 1.0
+      baidu: 0.8
+      zhihu: 1.2
