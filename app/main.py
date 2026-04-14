@@ -3,8 +3,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from loguru import logger
 
+from app.api.distributors import router as distributors_router
 from app.api.filters import router as filters_router
 from app.api.generators import router as generators_router
+from app.api.revenue import router as revenue_router
 from app.api.topics import router as topics_router
 from app.collector.registry import registry
 from config.settings import settings
@@ -30,6 +32,11 @@ async def lifespan(app: FastAPI):
     generator_registry.auto_discover()
     logger.info(f"Registered generators: {[g.name for g in generator_registry.get_all()]}")
 
+    # Distributor registry
+    from app.distributor.registry import registry as distributor_registry
+    distributor_registry.auto_discover()
+    logger.info(f"Registered distributors: {[d.name for d in distributor_registry.get_all()]}")
+
     yield
     logger.info("Shutting down")
 
@@ -44,6 +51,8 @@ app = FastAPI(
 app.include_router(topics_router)
 app.include_router(filters_router)
 app.include_router(generators_router)
+app.include_router(distributors_router)
+app.include_router(revenue_router)
 
 
 @app.get("/health")

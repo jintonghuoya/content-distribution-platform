@@ -89,18 +89,29 @@ open http://localhost:8000/docs
 - `GET /api/v1/generators/content` — 分页查询已生成内容
 - `PUT /api/v1/generators/content/{id}/publish` — 发布生成内容
 
-### 4. 内容分发 (Distributor) — 规划中
+### 4. 内容分发 (Distributor) — 已实现
 
-适配器模式，每个平台一个分发器：
-- 微信公众号（官方 API）
-- 今日头条（头条号 API）
-- 小红书（Playwright 自动化）
-- B站（创作者 API）
-- 抖音（开放平台 API）
+适配器模式，每个平台一个分发器，统一接口 `publish()` 和 `check_status()`：
+- 微信公众号（官方 API — 需配置凭证）
+- 今日头条（头条号 API — 需配置凭证）
+- 小红书（Playwright 自动化 — 需配置登录态）
+- B站（创作者 API — 需配置凭证）
+- 抖音（开放平台 API — 需配置凭证）
 
-### 5. 收益追踪 (Revenue) — 规划中
+**API**:
+- `GET /api/v1/distributors/` — 查看所有分发器
+- `POST /api/v1/distributors/trigger` — 手动触发全量分发
+- `POST /api/v1/distributors/trigger/{content_id}` — 分发单条内容
+- `GET /api/v1/distributors/records` — 分页查询分发记录
 
-采集各平台阅读量、播放量、收益数据，生成报表。
+### 5. 收益追踪 (Revenue) — 已实现
+
+采集各平台阅读量、播放量、收益数据，按平台维度汇总生成报表。
+
+**API**:
+- `GET /api/v1/revenue/records` — 分页查询收益记录
+- `GET /api/v1/revenue/summary` — 获取收益汇总（支持按平台、天数筛选）
+- `POST /api/v1/revenue/collect` — 手动触发收益采集
 
 ## 目录结构
 
@@ -115,8 +126,8 @@ rig/
 │   │   └── sources/      # 各平台采集器实现
 │   ├── filter/           # 内容过滤模块
 │   ├── generator/        # AI内容生成模块
-│   ├── distributor/      # 多平台分发（待实现）
-│   ├── revenue/          # 收益追踪（待实现）
+│   ├── distributor/      # 多平台分发模块
+│   ├── revenue/          # 收益追踪模块
 │   ├── models/           # SQLAlchemy ORM 模型
 │   ├── schemas/          # Pydantic 序列化模型
 │   ├── workers/          # Celery Worker 定义

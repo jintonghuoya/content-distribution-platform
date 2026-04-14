@@ -75,6 +75,34 @@ def generate_filtered_task():
     return results
 
 
+# ── Distributor tasks ──
+
+
+@app.task(name="distribute_published")
+def distribute_published_task():
+    from app.distributor.registry import registry as distributor_registry
+    from app.distributor.scheduler import distribute_published
+
+    distributor_registry.auto_discover()
+    logger.info("Beat: distribute published content")
+    results = _run_async(distribute_published())
+    logger.info(f"Distribution complete: {results}")
+    return results
+
+
+# ── Revenue tasks ──
+
+
+@app.task(name="collect_revenue")
+def collect_revenue_task():
+    from app.revenue.scheduler import collect_revenue_all
+
+    logger.info("Beat: collect revenue data")
+    results = _run_async(collect_revenue_all())
+    logger.info(f"Revenue collection complete: {results}")
+    return results
+
+
 # ── Beat schedule ──
 
 beat_schedule = {
@@ -92,6 +120,16 @@ beat_schedule = {
     "generate-filtered": {
         "task": "generate_filtered",
         "schedule": crontab(minute="5", hour="*/1"),
+    },
+    # Distribute draft content every 30 minutes (offset by 10 min)
+    "distribute-published": {
+        "task": "distribute_published",
+        "schedule": crontab(minute="10-59/30"),
+    },
+    # Collect revenue data every hour
+    "collect-revenue": {
+        "task": "collect_revenue",
+        "schedule": crontab(minute=15),
     },
 }
 
