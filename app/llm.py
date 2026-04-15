@@ -28,6 +28,7 @@ async def llm_complete(
     client = AsyncAnthropic(
         api_key=settings.llm_api_key,
         base_url=settings.llm_base_url if settings.llm_base_url else None,
+        timeout=120.0,
     )
     resp = await client.messages.create(
         model=model or settings.llm_model,
