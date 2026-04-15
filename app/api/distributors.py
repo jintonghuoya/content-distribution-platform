@@ -43,9 +43,11 @@ async def trigger_distribute_content(
     from app.distributor.scheduler import distribute_single
 
     records = await distribute_single(content, platform)
-    async with db.begin():
-        for record in records:
-            db.add(record)
+    for record in records:
+        db.add(record)
+    await db.commit()
+    for record in records:
+        await db.refresh(record)
 
     return [DistributionRecordResponse.model_validate(r) for r in records]
 
