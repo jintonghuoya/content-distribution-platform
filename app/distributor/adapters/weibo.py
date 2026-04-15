@@ -33,16 +33,30 @@ async def _get_cookie() -> str:
     return config.cookie
 
 
+def _extract_xsrf_token(cookie: str) -> str:
+    """从 Cookie 中提取 XSRF-TOKEN。"""
+    for part in cookie.split(";"):
+        part = part.strip()
+        if part.startswith("XSRF-TOKEN="):
+            return part.split("=", 1)[1]
+    return ""
+
+
 async def _post_weibo(cookie: str, text: str) -> dict:
     """通过微博移动端 API 发布微博。"""
     url = "https://m.weibo.cn/api/statuses/update"
+
+    xsrf_token = _extract_xsrf_token(cookie)
+
     headers = {
         "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
                       "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-                      "CriOS/118.0.5993.69 Mobile/15E148 Safari/604.1",
+                      "Version/17.0 Mobile/15E148 Safari/604.1",
         "Referer": "https://m.weibo.cn/",
         "X-Requested-With": "XMLHttpRequest",
+        "X-XSRF-TOKEN": xsrf_token,
         "Cookie": cookie,
+        "Origin": "https://m.weibo.cn",
         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
     }
 
@@ -53,6 +67,11 @@ async def _post_weibo(cookie: str, text: str) -> dict:
     data = {"content": text}
 
     async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+        # 先访问主页获取 cookies
+        await client.get("https://m.weibo.cn/", headers={
+            "User-Agent": headers["User-Agent"],
+            "Cookie": cookie,
+        })
         resp = await client.post(url, headers=headers, data=data)
         result = resp.json()
 
