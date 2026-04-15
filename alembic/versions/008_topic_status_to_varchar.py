@@ -7,7 +7,6 @@ Create Date: 2026-04-15
 from typing import Sequence, Union
 
 from alembic import op
-import sqlalchemy as sa
 
 revision: str = "008"
 down_revision: Union[str, None] = "007"
@@ -16,28 +15,21 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Convert topics.status from native PostgreSQL enum to VARCHAR(22)
-    op.alter_column(
-        "topics",
-        "status",
-        type_=sa.String(22),
-        existing_type=sa.Enum("pending", "filtered", "rejected", "generating", "published", name="topicstatus"),
-        existing_nullable=False,
-        existing_server_default="pending",
-    )
-    # Drop the now-unused enum type
+    # PostgreSQL: convert ENUM column to VARCHAR via raw SQL
+    # Step 1: Drop the default (must do before changing type)
+    op.execute("ALTER TABLE topics ALTER COLUMN status DROP DEFAULT")
+    # Step 2: Cast from enum to varchar
+    op.execute("ALTER TABLE topics ALTER COLUMN status TYPE VARCHAR(22) USING status::VARCHAR")
+    # Step 3: Re-add the default
+    op.execute("ALTER TABLE topics ALTER COLUMN status SET DEFAULT 'pending'")
+    # Step 4: Drop the now-unused enum type
     op.execute("DROP TYPE IF EXISTS topicstatus")
 
 
 def downgrade() -> None:
-    # Recreate the enum type
-    topicstatus = sa.Enum("pending", "filtered", "rejected", "generating", "published", name="topicstatus")
-    topicstatus.create(op.get_bind())
-    op.alter_column(
-        "topics",
-        "status",
-        type_=topicstatus,
-        existing_type=sa.String(22),
-        existing_nullable=False,
-        existing_server_default="pending",
+    op.execute(
+        "CREATE TYPE topicstatus AS ENUM ('pending','filtered','rejected','generating','published')"
     )
+    op.execute("ALTER TABLE topics ALTER COLUMN status DROP DEFAULT")
+    op.execute("ALTER TABLE topics ALTER COLUMN status TYPE topicstatus USING status::topicstatus")
+    op.execute("ALTER TABLE topics ALTER COLUMN status SET DEFAULT 'pending'")
