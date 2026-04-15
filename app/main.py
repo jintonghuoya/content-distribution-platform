@@ -1,12 +1,15 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI
+import yaml
+from fastapi import FastAPI, HTTPException
 from loguru import logger
 
 from app.api.distributors import router as distributors_router
 from app.api.filters import router as filters_router
 from app.api.generators import router as generators_router
 from app.api.revenue import router as revenue_router
+from app.api.settings import router as settings_router
 from app.api.topics import router as topics_router
 from app.collector.registry import registry
 from config.settings import settings
@@ -53,6 +56,7 @@ app.include_router(filters_router)
 app.include_router(generators_router)
 app.include_router(distributors_router)
 app.include_router(revenue_router)
+app.include_router(settings_router)
 
 
 @app.get("/health")
@@ -73,6 +77,40 @@ async def list_sources():
         }
         for source, collector in registry._collectors.items()
     ]
+
+
+@app.put("/api/v1/sources/{source_name}")
+async def toggle_source(source_name: str, body: dict):
+    """启用/禁用指定采集源。"""
+    if source_name not in registry._collectors:
+        raise HTTPException(status_code=404, detail=f"Source '{source_name}' not found")
+
+    enabled = body.get("enabled")
+    if enabled is None:
+        raise HTTPException(status_code=400, detail="'enabled' field is required")
+
+    # Update in-memory config
+    if "sources" not in registry._config:
+        registry._config["sources"] = {}
+    if source_name not in registry._config["sources"]:
+        registry._config["sources"][source_name] = {}
+    registry._config["sources"][source_name]["enabled"] = enabled
+
+    # Persist to sources.yaml
+    sources_yaml_path = Path(__file__).resolve().parent.parent / "config" / "sources.yaml"
+    if sources_yaml_path.exists():
+        with open(sources_yaml_path, "r") as f:
+            data = yaml.safe_load(f) or {}
+        if "sources" in data and source_name in data["sources"]:
+            data["sources"][source_name]["enabled"] = enabled
+            with open(sources_yaml_path, "w") as f:
+                yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
+
+    return {
+        "source": source_name,
+        "enabled": enabled,
+        "message": f"Source '{source_name}' {'enabled' if enabled else 'disabled'}",
+    }
 
 
 def main():

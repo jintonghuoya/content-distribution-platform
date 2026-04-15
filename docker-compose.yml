@@ -67,6 +67,14 @@ services:
         condition: service_healthy
     command: celery -A app.workers.cdp_worker flower --port=5555
 
+  frontend:
+    build: ./frontend
+    ports:
+      - "8088:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redisdata:

@@ -32,7 +32,10 @@ class Topic(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     status: Mapped[TopicStatus] = mapped_column(
-        Enum(TopicStatus), default=TopicStatus.PENDING, nullable=False, index=True
+        Enum(TopicStatus, values_callable=lambda x: [e.value for e in x]),
+        default=TopicStatus.PENDING,
+        nullable=False,
+        index=True,
     )
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
