@@ -26,28 +26,28 @@ async def list_generators():
 
 @router.post("/trigger", response_model=GenerateTriggerResponse)
 async def trigger_generate_all():
-    """手动触发全量生成（所有 filtered topics）。"""
-    from app.generator.scheduler import generate_for_filtered
+    """异步触发全量生成（所有 filtered topics），通过 Celery 后台执行。"""
+    from app.workers.generator_worker import generate_filtered_task
 
-    stats = await generate_for_filtered()
-    return GenerateTriggerResponse(**stats)
+    generate_filtered_task.delay()
+    return GenerateTriggerResponse(total=0, generated=0, message="生成任务已提交，后台执行中")
 
 
-@router.post("/trigger/{topic_id}", response_model=list[GeneratedContentResponse])
+@router.post("/trigger/{topic_id}")
 async def trigger_generate_topic(
     topic_id: int,
     generator: str | None = Query(None, description="指定生成器类型，如 article, social_post"),
     db: AsyncSession = Depends(get_db),
 ):
-    """为单条 topic 生成内容。"""
+    """异步为单条 topic 生成内容，通过 Celery 后台执行。"""
     topic = await db.get(Topic, topic_id)
     if not topic:
         raise HTTPException(status_code=404, detail="Topic not found")
 
-    from app.generator.scheduler import generate_for_topic
+    from app.workers.generator_worker import generate_topic_task
 
-    contents = await generate_for_topic(topic_id, generator_name=generator)
-    return [GeneratedContentResponse.model_validate(c) for c in contents]
+    generate_topic_task.delay(topic_id, generator)
+    return {"topic_id": topic_id, "message": "生成任务已提交，后台执行中"}
 
 
 @router.get("/content", response_model=GeneratedContentListResponse)

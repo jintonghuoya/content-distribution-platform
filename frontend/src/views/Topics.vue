@@ -200,8 +200,7 @@ async function handleGenerateTopic(row: Topic) {
   actionLoading.value = row.id + '-generate'
   try {
     await triggerGenerateTopic(row.id)
-    ElMessage.success('内容生成已触发')
-    await fetchTopics()
+    ElMessage.success('生成任务已提交，后台执行中...可到「内容管理」查看')
   } finally {
     actionLoading.value = null
   }

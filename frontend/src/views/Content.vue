@@ -133,8 +133,7 @@ async function handleBatchGenerate() {
   batchLoading.value = true
   try {
     const res = await triggerGenerateAll()
-    ElMessage.success(res.data.message || '批量生成已触发')
-    await fetchContent()
+    ElMessage.success(res.data.message || '生成任务已提交，后台执行中')
   } finally {
     batchLoading.value = false
   }
