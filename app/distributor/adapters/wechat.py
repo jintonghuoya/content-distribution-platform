@@ -123,13 +123,39 @@ class WeChatDistributor(BaseDistributor):
 
             # 3. 发布
             publish_id = await _publish(access_token, media_id)
-            logger.info(f"[WeChat] Published, publish_id: {publish_id}")
+            logger.info(f"[WeChat] Publish submitted, publish_id: {publish_id}")
+
+            # 4. 轮询发布状态（最多等 30 秒）
+            import asyncio
+            article_url = ""
+            for _ in range(6):
+                await asyncio.sleep(5)
+                status_data = await _check_publish_status(access_token, publish_id)
+                publish_status = status_data.get("publish_status", -1)
+                # 0=成功, 1=发布中, 2=原创失败, 10001=涉嫌安全, 10002=命中黑名单
+                if publish_status == 0:
+                    article_id = status_data.get("article_id", "")
+                    article_url = f"https://mp.weixin.qq.com/s/{article_id}" if article_id else ""
+                    logger.info(f"[WeChat] Publish success: {article_url}")
+                    break
+                elif publish_status in (2, 10001, 10002):
+                    msg = status_data.get("errcode", "unknown")
+                    logger.error(f"[WeChat] Publish rejected: status={publish_status}, errcode={msg}")
+                    return DistributeResult(
+                        platform=self.platform,
+                        success=False,
+                        platform_content_id=publish_id,
+                        error_message=f"微信审核未通过, status={publish_status}",
+                    )
+                # status=1 还在发布中，继续轮询
+            else:
+                logger.warning(f"[WeChat] Publish timeout, publish_id={publish_id}, still processing")
 
             return DistributeResult(
                 platform=self.platform,
                 success=True,
                 platform_content_id=publish_id,
-                platform_url="",
+                platform_url=article_url,
                 error_message="",
             )
 
