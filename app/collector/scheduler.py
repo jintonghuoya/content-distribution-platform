@@ -25,12 +25,16 @@ async def collect_from_source(source: str) -> int:
     new_count = 0
     async with async_session() as session:
         for item in topics_data:
-            # 按 source_id 去重
-            from sqlalchemy import select
+            # 按 source_id + source 去重
+            from sqlalchemy import exists, select
 
-            stmt = select(Topic).where(Topic.source_id == item.source_id)
+            stmt = select(
+                exists().where(
+                    (Topic.source_id == item.source_id) & (Topic.source == item.source)
+                )
+            )
             result = await session.execute(stmt)
-            if result.scalar_one_or_none():
+            if result.scalar():
                 continue
 
             topic = Topic(
