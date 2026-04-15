@@ -1,7 +1,7 @@
 import datetime
 import enum
 
-from sqlalchemy import JSON, DateTime, Enum, Float, Integer, String, func
+from sqlalchemy import JSON, DateTime, Float, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -32,8 +32,8 @@ class Topic(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     status: Mapped[TopicStatus] = mapped_column(
-        Enum(TopicStatus, values_callable=lambda x: [e.value for e in x]),
-        default=TopicStatus.PENDING,
+        String(20),
+        default=TopicStatus.PENDING.value,
         nullable=False,
         index=True,
     )
