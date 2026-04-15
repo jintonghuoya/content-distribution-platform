@@ -1,7 +1,7 @@
 import datetime
 import enum
 
-from sqlalchemy import JSON, DateTime, Float, Integer, String, func
+from sqlalchemy import JSON, DateTime, Float, Integer, String, TypeDecorator, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -13,6 +13,22 @@ class TopicStatus(str, enum.Enum):
     REJECTED = "rejected"
     GENERATING = "generating"
     PUBLISHED = "published"
+
+
+class TopicStatusType(TypeDecorator):
+    """Store TopicStatus enum as VARCHAR, binding .value on bind."""
+    impl = String(22)
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if isinstance(value, TopicStatus):
+            return value.value
+        return value
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            return TopicStatus(value)
+        return value
 
 
 class Topic(Base):
@@ -32,7 +48,7 @@ class Topic(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     status: Mapped[TopicStatus] = mapped_column(
-        String(20),
+        TopicStatusType,
         default=TopicStatus.PENDING.value,
         nullable=False,
         index=True,
