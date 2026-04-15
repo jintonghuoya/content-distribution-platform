@@ -124,13 +124,19 @@ async def generate_for_filtered(batch_size: int | None = None) -> dict:
 
             db_topic.status = TopicStatus.GENERATING
 
+            topic_generated = 0
             for gen in generators:
                 content = await generate_single(db_topic, gen)
                 if content:
                     session.add(content)
                     generated_count += 1
+                    topic_generated += 1
 
-            db_topic.status = TopicStatus.PUBLISHED
+            # 只有成功生成了内容才改为 PUBLISHED
+            if topic_generated > 0:
+                db_topic.status = TopicStatus.PUBLISHED
+            else:
+                db_topic.status = TopicStatus.FILTERED  # 回退，下次可以重试
 
         await session.commit()
 
