@@ -151,7 +151,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getGeneratedContent, publishContent, triggerGenerateAll, getGeneratedContentDetail } from '@/api/generators'
 import { triggerDistributeContent } from '@/api/distributors'
