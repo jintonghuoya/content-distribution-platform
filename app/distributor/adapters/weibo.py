@@ -5,8 +5,7 @@
 
 Cookie 获取方式：
 1. 手机浏览器登录 m.weibo.cn
-2. 长按刷新 → 开发者工具/查看源码（或用 Fiddler/Charles 抓包）
-3. 复制完整 Cookie（包含 SUB, _T_WM, MLOGIN 等字段）
+2. 复制完整 Cookie（包含 SUB, _T_WM, MLOGIN, XSRF-TOKEN 等字段）
 """
 import httpx
 from loguru import logger
@@ -48,7 +47,7 @@ async def _post_weibo(cookie: str, text: str) -> dict:
     url = "https://m.weibo.cn/api/statuses/update"
 
     xsrf_token = _extract_xsrf_token(cookie)
-    logger.debug(f"[Weibo] Cookie length={len(cookie)}, XSRF-TOKEN={xsrf_token[:20] + '...' if len(xsrf_token) > 20 else xsrf_token or '(empty)'}")
+    logger.debug(f"[Weibo] Cookie length={len(cookie)}, XSRF-TOKEN={xsrf_token}")
 
     ua = (
         "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
@@ -73,21 +72,9 @@ async def _post_weibo(cookie: str, text: str) -> dict:
     data = {"content": text}
 
     async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-        # 先访问主页获取/刷新 cookies
-        warmup = await client.get("https://m.weibo.cn/", headers={
-            "User-Agent": ua,
-            "Cookie": cookie,
-        })
-        logger.debug(f"[Weibo] Warmup status={warmup.status_code}, cookies={dict(warmup.cookies)}")
-
-        # 合并 warmup 回来的 cookies
-        merged_cookies = cookie
-        new_cookies = dict(warmup.cookies)
-        if new_cookies:
-            extra = "; ".join(f"{k}={v}" for k, v in new_cookies.items())
-            merged_cookies = f"{cookie}; {extra}"
-            headers["Cookie"] = merged_cookies
-
+        # 直接 POST，用用户原始 cookie 和 XSRF-TOKEN
+        # 不做 warmup 请求，因为 warmup 会生成新的 session 和 XSRF-TOKEN，
+        # 导致与用户原始登录 session 冲突
         resp = await client.post(url, headers=headers, data=data)
 
         logger.debug(f"[Weibo] Response status={resp.status_code}, body={resp.text[:500]}")
