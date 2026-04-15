@@ -5,7 +5,8 @@ from alembic import context
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.database import Base
-from app.models import FilterRule, GeneratedContent, Topic  # noqa: F401 — import all models to register with Base
+from app.models import DistributionRecord, FilterRule, GeneratedContent, RevenueRecord, Topic  # noqa: F401
+from app.models.platform_config import PlatformConfig  # noqa: F401
 from config.settings import settings
 
 config = context.config

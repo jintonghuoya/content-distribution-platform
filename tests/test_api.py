@@ -28,6 +28,25 @@ async def test_list_topics_with_filters(client):
 
 
 @pytest.mark.asyncio
+async def test_topic_status_filter_with_data(client, db):
+    """Insert topics with different statuses, filter by each status."""
+    from app.models.topic import Topic, TopicStatus
+
+    for status in [TopicStatus.PENDING, TopicStatus.FILTERED, TopicStatus.REJECTED]:
+        t = Topic(title=f"test-{status.value}", source="test", source_id=f"src-{status.value}", status=status.value)
+        db.add(t)
+    await db.commit()
+
+    for st in ["pending", "filtered", "rejected"]:
+        resp = await client.get("/api/v1/topics", params={"status": st})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total"] >= 1
+        for item in data["items"]:
+            assert item["status"] == st
+
+
+@pytest.mark.asyncio
 async def test_get_topic_not_found(client):
     resp = await client.get("/api/v1/topics/99999")
     assert resp.status_code == 404
