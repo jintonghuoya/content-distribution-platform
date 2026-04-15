@@ -81,10 +81,19 @@ async def distribute_published(batch_size: int = 50) -> dict:
     failed = 0
 
     async with async_session() as session:
-        for content in contents:
+        import random
+
+        for i, content in enumerate(contents):
             db_content = await session.get(GeneratedContent, content.id)
             if not db_content:
                 continue
+
+            # 每条之间随机延迟 30~120 秒，避免触发平台风控
+            if i > 0:
+                import asyncio
+                delay = random.uniform(30, 120)
+                logger.info(f"Cooling down {delay:.0f}s before next distribution...")
+                await asyncio.sleep(delay)
 
             records = await distribute_single(db_content)
             for record in records:
