@@ -1,7 +1,7 @@
 import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class GenerationResult(BaseModel):
@@ -23,6 +23,13 @@ class GeneratedContentResponse(BaseModel):
     metadata: dict[str, Any] | None = None
     created_at: datetime.datetime
     updated_at: datetime.datetime
+
+    @field_validator("metadata", mode="before")
+    @classmethod
+    def coerce_metadata(cls, v):
+        if isinstance(v, dict):
+            return v
+        return None
 
     model_config = {"from_attributes": True}
 
