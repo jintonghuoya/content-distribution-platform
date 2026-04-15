@@ -4,8 +4,9 @@
 用户需在平台配置中填入微博 Cookie。
 
 Cookie 获取方式：
-1. 浏览器登录 weibo.com
-2. F12 → Network → 随便点一个请求 → 复制 Cookie
+1. 手机浏览器登录 m.weibo.cn
+2. 长按刷新 → 开发者工具/查看源码（或用 Fiddler/Charles 抓包）
+3. 复制完整 Cookie（包含 SUB, _T_WM, MLOGIN 等字段）
 """
 import httpx
 from loguru import logger
@@ -47,11 +48,16 @@ async def _post_weibo(cookie: str, text: str) -> dict:
     url = "https://m.weibo.cn/api/statuses/update"
 
     xsrf_token = _extract_xsrf_token(cookie)
+    logger.debug(f"[Weibo] Cookie length={len(cookie)}, XSRF-TOKEN={xsrf_token[:20] + '...' if len(xsrf_token) > 20 else xsrf_token or '(empty)'}")
+
+    ua = (
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+        "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+        "Version/17.0 Mobile/15E148 Safari/604.1"
+    )
 
     headers = {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
-                      "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-                      "Version/17.0 Mobile/15E148 Safari/604.1",
+        "User-Agent": ua,
         "Referer": "https://m.weibo.cn/",
         "X-Requested-With": "XMLHttpRequest",
         "X-XSRF-TOKEN": xsrf_token,
@@ -67,13 +73,30 @@ async def _post_weibo(cookie: str, text: str) -> dict:
     data = {"content": text}
 
     async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-        # 先访问主页获取 cookies
-        await client.get("https://m.weibo.cn/", headers={
-            "User-Agent": headers["User-Agent"],
+        # 先访问主页获取/刷新 cookies
+        warmup = await client.get("https://m.weibo.cn/", headers={
+            "User-Agent": ua,
             "Cookie": cookie,
         })
+        logger.debug(f"[Weibo] Warmup status={warmup.status_code}, cookies={dict(warmup.cookies)}")
+
+        # 合并 warmup 回来的 cookies
+        merged_cookies = cookie
+        new_cookies = dict(warmup.cookies)
+        if new_cookies:
+            extra = "; ".join(f"{k}={v}" for k, v in new_cookies.items())
+            merged_cookies = f"{cookie}; {extra}"
+            headers["Cookie"] = merged_cookies
+
         resp = await client.post(url, headers=headers, data=data)
-        result = resp.json()
+
+        logger.debug(f"[Weibo] Response status={resp.status_code}, body={resp.text[:500]}")
+
+        try:
+            result = resp.json()
+        except Exception:
+            logger.error(f"[Weibo] Response not JSON: {resp.text[:500]}")
+            return {"ok": 0, "msg": f"非JSON响应: {resp.status_code}"}
 
     return result
 
