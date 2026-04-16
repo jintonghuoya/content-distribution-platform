@@ -30,6 +30,8 @@ services:
     ports:
       - "8000:8000"
     env_file: .env
+    environment:
+      - TZ_OFFSET_HOURS=${TZ_OFFSET_HOURS:-8}
     depends_on:
       postgres:
         condition: service_healthy
@@ -42,6 +44,8 @@ services:
   worker:
     build: .
     env_file: .env
+    environment:
+      - TZ_OFFSET_HOURS=${TZ_OFFSET_HOURS:-8}
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,6 +56,8 @@ services:
   beat:
     build: .
     env_file: .env
+    environment:
+      - TZ_OFFSET_HOURS=${TZ_OFFSET_HOURS:-8}
     depends_on:
       postgres:
         condition: service_healthy

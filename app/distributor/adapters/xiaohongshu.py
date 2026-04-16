@@ -70,4 +70,4 @@ class XiaohongshuDistributor(BaseDistributor):
             )
 
 
-registry.register(XiaohongshuDistributor())
+# registry.register(XiaohongshuDistributor())  # 暂时禁用，Browser Service 小红书发布未稳定

@@ -1,6 +1,7 @@
 import asyncio
+import os
 import random
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from loguru import logger
 from sqlalchemy import select
@@ -34,10 +35,18 @@ QUIET_HOURS = (0, 7)  # 0:00 ~ 7:00 不发布
 RANDOM_DELAY_MIN = 120  # 2 分钟
 RANDOM_DELAY_MAX = 300  # 5 分钟
 
+# 时区：读取 TZ 环境变量，默认 Asia/Singapore (UTC+8)
+_TZ_OFFSET = int(os.environ.get("TZ_OFFSET_HOURS", "8"))
+
+
+def _now_local() -> datetime:
+    """获取本地时区的当前时间。"""
+    return datetime.now(timezone(timedelta(hours=_TZ_OFFSET)))
+
 
 def _is_quiet_hour() -> bool:
     """当前时间是否在禁止发布的时间段内。"""
-    hour = datetime.now().hour
+    hour = _now_local().hour
     return QUIET_HOURS[0] <= hour < QUIET_HOURS[1]
 
 
