@@ -91,18 +91,29 @@ open http://localhost:8000/docs
 
 ### 4. 内容分发 (Distributor) — 已实现
 
-适配器模式，每个平台一个分发器，统一接口 `publish()` 和 `check_status()`：
-- 微信公众号（官方 API — 需配置凭证）
-- 今日头条（头条号 API — 需配置凭证）
-- 小红书（Playwright 自动化 — 需配置登录态）
-- B站（创作者 API — 需配置凭证）
-- 抖音（开放平台 API — 需配置凭证）
+适配器模式，每个平台一个分发器，统一接口 `publish()`。支持两种分发模式：
+
+- **AutoPublish** — 自动发布到平台（微信公众号，通过官方 API）
+- **ContentPackage** — 生成格式化内容包，用户手动复制粘贴发布（微博、小红书、B站、今日头条、抖音）
+
+**Playwright Browser Service**（宿主机独立服务）：
+- 微博和小红书支持通过宿主机 Playwright 服务自动发布
+- 需在宿主机单独启动 `browser-service/server.py`（端口 8001）
+- 首次使用需运行登录脚本保存登录态（`browser-service/login.py`）
+
+**防重复发布**：同一条内容不会重复发布到同一平台（基于 `distribution_records` 表检查）。
+
+**批量分发规则**：
+- 安静时段（0:00-7:00）禁止批量发布
+- 批量发布每条之间随机延迟 60~180 秒
+- 手动单条分发无延迟
 
 **API**:
 - `GET /api/v1/distributors/` — 查看所有分发器
 - `POST /api/v1/distributors/trigger` — 手动触发全量分发
 - `POST /api/v1/distributors/trigger/{content_id}` — 分发单条内容
 - `GET /api/v1/distributors/records` — 分页查询分发记录
+- `GET /api/v1/distributors/records/{record_id}/package` — 获取内容包（packaged 模式）
 
 ### 5. 收益追踪 (Revenue) — 已实现
 
@@ -127,12 +138,20 @@ rig/
 │   ├── filter/           # 内容过滤模块
 │   ├── generator/        # AI内容生成模块
 │   ├── distributor/      # 多平台分发模块
+│   │   ├── adapters/     # 各平台适配器
+│   │   ├── base.py       # DistributeResult 基类
+│   │   ├── registry.py   # 分发器注册中心
+│   │   └── scheduler.py  # 调度（防重复/安静时段/随机延迟）
 │   ├── revenue/          # 收益追踪模块
 │   ├── models/           # SQLAlchemy ORM 模型
 │   ├── schemas/          # Pydantic 序列化模型
 │   ├── workers/          # Celery Worker 定义
 │   ├── database.py       # 数据库连接
 │   └── main.py           # FastAPI 入口
+├── browser-service/      # 宿主机 Playwright 浏览器服务
+│   ├── server.py         # FastAPI 服务（端口 8001）
+│   ├── login.py          # 登录态保存脚本
+│   └── data/             # 登录态 JSON 文件
 ├── config/
 │   ├── settings.py       # 全局配置（环境变量）
 │   └── sources.yaml      # 采集源配置

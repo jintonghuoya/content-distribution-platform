@@ -8,8 +8,10 @@ from app.models.generated_content import GeneratedContent
 class DistributeResult(BaseModel):
     platform: str
     success: bool
+    mode: str = "published"  # "published" (auto) or "packaged" (manual copy)
     platform_content_id: str = ""
     platform_url: str = ""
+    package_data: dict | None = None  # For packaged mode: {title, body, tags, ...}
     error_message: str = ""
 
 

@@ -88,15 +88,6 @@
             >
               分发
             </el-button>
-            <el-popconfirm
-              v-if="row.status === 'draft'"
-              title="确定发布此内容？"
-              @confirm="handlePublish(row)"
-            >
-              <template #reference>
-                <el-button link type="warning" size="small">发布</el-button>
-              </template>
-            </el-popconfirm>
           </template>
         </el-table-column>
       </el-table>
@@ -153,7 +144,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getGeneratedContent, publishContent, triggerGenerateAll, getGeneratedContentDetail } from '@/api/generators'
+import { getGeneratedContent, triggerGenerateAll, getGeneratedContentDetail } from '@/api/generators'
 import { triggerDistributeContent } from '@/api/distributors'
 import type { GeneratedContent } from '@/types'
 
@@ -234,12 +225,6 @@ async function handleBatchGenerate() {
   } finally {
     batchGenerateLoading.value = false
   }
-}
-
-async function handlePublish(row: GeneratedContent) {
-  await publishContent(row.id)
-  ElMessage.success('已发布')
-  await fetchContent()
 }
 
 async function showPreview(row: GeneratedContent) {

@@ -95,7 +95,10 @@ docker compose exec api alembic upgrade head
 |------|------|
 | 批量生成 | 对所有 filtered 话题触发内容生成 |
 | 预览 | 点击「预览」查看生成的文章内容 |
-| 发布 | 将草稿状态的内容标记为已发布 |
+| 分发 | 选择平台后分发单条内容（已分发的内容自动跳过） |
+| 批量分发 | 勾选多条内容，选择平台批量分发 |
+
+**防重复**：同一条内容在某个平台已成功分发后，再次点击分发会自动跳过。
 
 ### 分发记录 (`/distribution`)
 
@@ -104,7 +107,7 @@ docker compose exec api alembic upgrade head
 | 操作 | 说明 |
 |------|------|
 | 平台筛选 | 按平台（微博/微信等）筛选分发记录 |
-| 批量分发 | 触发将已发布内容分发到各平台 |
+| 内容包 | packaged 模式的记录可查看格式化内容，手动复制发布 |
 
 ### 收益统计 (`/revenue`)
 
@@ -129,6 +132,23 @@ docker compose exec api alembic upgrade head
 
 点击展开对应平台的面板，填写后点击「保存配置」。
 
+### Playwright Browser Service（宿主机）
+
+微博和小红书通过宿主机上的 Playwright 服务自动发布，需单独配置：
+
+```bash
+cd browser-service
+pip install -r requirements.txt
+playwright install chromium
+python server.py          # 启动服务（端口 8001）
+```
+
+首次使用需保存登录态：
+```bash
+python login.py weibo        # 浏览器中手动登录，保存 cookie
+python login.py xiaohongshu  # 同上
+```
+
 ---
 
 ## 推荐启动流程
@@ -140,9 +160,9 @@ docker compose exec api alembic upgrade head
 3. **过滤规则** → 检查默认规则是否合适，可新增自定义规则
 4. **话题管理** → 选一条话题点「过滤」，或在过滤规则页点「全量过滤」
 5. **话题管理** → 对已过滤的话题点「生成」
-6. **内容管理** → 预览生成的内容，满意后点「发布」
-7. **平台配置** → 填入目标平台的凭据
-8. **分发记录** → 点「批量分发」
+6. **内容管理** → 预览生成的内容
+7. **平台配置** → 填入目标平台的凭据（微博/小红书需先在宿主机启动 Browser Service 并保存登录态）
+8. **内容管理** → 点「分发」选择目标平台发布
 
 ---
 

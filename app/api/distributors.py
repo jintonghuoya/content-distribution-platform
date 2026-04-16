@@ -76,3 +76,17 @@ async def list_distribution_records(
     result = await db.execute(query)
     items = result.scalars().all()
     return [DistributionRecordResponse.model_validate(i) for i in items]
+
+
+@router.get("/records/{record_id}/package")
+async def get_package(record_id: int, db: AsyncSession = Depends(get_db)):
+    """获取 packaged 模式分发记录的内容包（供前端复制）。"""
+    record = await db.get(DistributionRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+    if record.mode != "packaged" or not record.package_data:
+        raise HTTPException(status_code=404, detail="No package data for this record")
+    return {
+        "platform": record.platform,
+        "package_data": record.package_data,
+    }
