@@ -120,7 +120,7 @@ beat_schedule = {
     # Generate content every 30 minutes
     "generate-filtered": {
         "task": "generate_filtered",
-        "schedule": crontab(minute="5", hour="*/1"),
+        "schedule": crontab(minute="5-59/30"),
     },
     # Distribute draft content every 10 minutes (offset by 7 min)
     "distribute-published": {
