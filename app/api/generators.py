@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, not_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.generator.registry import registry as generator_registry
+from app.models.distribution import DistributionRecord
 from app.models.generated_content import GeneratedContent
 from app.models.topic import Topic
 from app.schemas.generator import (
@@ -55,6 +56,7 @@ async def list_generated_content(
     topic_id: int | None = Query(None, description="按 topic ID 过滤"),
     content_type: str | None = Query(None, description="按内容类型过滤"),
     status: str | None = Query(None, description="按状态过滤"),
+    exclude_published: bool = Query(False, description="排除所有平台已分发完的内容"),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -72,6 +74,25 @@ async def list_generated_content(
     if status:
         query = query.where(GeneratedContent.status == status)
         count_query = count_query.where(GeneratedContent.status == status)
+
+    if exclude_published:
+        # 排除所有注册平台都已成功分发的内容
+        from app.distributor.registry import registry as dist_registry
+        platforms = [d.platform for d in dist_registry.get_all()]
+        if platforms:
+            for platform in platforms:
+                subq = (
+                    select(DistributionRecord.id)
+                    .where(
+                        DistributionRecord.content_id == GeneratedContent.id,
+                        DistributionRecord.platform == platform,
+                        DistributionRecord.success.is_(True),
+                    )
+                    .correlate(GeneratedContent)
+                    .exists()
+                )
+                query = query.where(not_(subq))
+                count_query = count_query.where(not_(subq))
 
     query = query.order_by(GeneratedContent.created_at.desc()).offset((page - 1) * size).limit(size)
 

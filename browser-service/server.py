@@ -182,7 +182,20 @@ async def _publish_weibo(text: str) -> PublishResponse:
             logger.warning("[Weibo] No publish button found, trying Ctrl+Enter")
             await page.keyboard.press("Control+Enter")
 
+        # 等待页面响应（可能出现确认弹窗）
+        await page.wait_for_timeout(2000)
+
+        # 处理可能的确认弹窗
+        confirm_btn = page.locator('button:has-text("确认"):visible, button:has-text("确定"):visible')
+        if await confirm_btn.count() > 0:
+            logger.info("[Weibo] Found confirm dialog, clicking...")
+            await confirm_btn.first.click()
+            await page.wait_for_timeout(2000)
+
         await page.wait_for_timeout(3000)
+
+        # 截图保存发布后的状态
+        await page.screenshot(path=str(DATA_DIR / "weibo_step4_after_publish.png"))
 
         # 检查错误
         error_el = page.locator('[class*="error"], [class*="fail"]')

@@ -52,8 +52,10 @@ export interface DistributionRecord {
   content_id: number
   platform: string
   success: boolean
+  mode: string
   platform_content_id: string
   platform_url: string
+  package_data: Record<string, any> | null
   error_message: string
   published_at: string
   created_at: string

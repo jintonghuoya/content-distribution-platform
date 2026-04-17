@@ -209,6 +209,7 @@ async function fetchContent() {
     if (filters.value.content_type) params.content_type = filters.value.content_type
     if (filters.value.status) params.status = filters.value.status
     if (filters.value.topic_id) params.topic_id = Number(filters.value.topic_id)
+    params.exclude_published = true
     const res = await getGeneratedContent(params)
     contents.value = res.data.items
     total.value = res.data.total
