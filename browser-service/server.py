@@ -98,12 +98,7 @@ async def _check_login(platform: str) -> dict:
 
 
 async def _publish_weibo(text: str) -> PublishResponse:
-    """通过浏览器发布微博。
-
-    使用有头模式(headless=False)，弹出浏览器窗口。
-    点击发送后如果弹出滑块验证码，暂停等用户手动拖完（最多5分钟），
-    然后继续发布流程。同一个浏览器会话，不重新来。
-    """
+    """通过浏览器发布微博（headless 模式，后台运行）。"""
     from playwright.async_api import async_playwright
 
     if not WEIBO_STATE.exists():
@@ -113,7 +108,7 @@ async def _publish_weibo(text: str) -> PublishResponse:
         )
 
     pw = await async_playwright().start()
-    browser = await pw.chromium.launch(headless=False)
+    browser = await pw.chromium.launch(headless=True)
     context = await browser.new_context(
         storage_state=str(WEIBO_STATE),
         user_agent=(
@@ -196,57 +191,6 @@ async def _publish_weibo(text: str) -> PublishResponse:
             logger.info("[Weibo] Found confirm dialog, clicking...")
             await confirm_btn.first.click()
             await page.wait_for_timeout(2000)
-
-        # 监听验证码窗口（可能是 iframe / dialog / 新弹窗）
-        # 策略：点击发送后，检查页面上是否多了 iframe 或 dialog
-        # 如果有，等用户操作完（窗口消失），再重新点发送
-        logger.info("[Weibo] Checking for captcha popup...")
-        captcha_found = False
-
-        # 检查 iframe（验证码常见载体）
-        iframe_count_before = len(page.frames)
-        if len(page.frames) > 1:
-            logger.info(f"[Weibo] Iframe detected ({len(page.frames)} frames), waiting for user...")
-            captcha_found = True
-
-        # 检查 dialog / modal
-        if not captcha_found:
-            for sel in ['dialog', '[role="dialog"]', '.modal', '[class*="dialog"]', '[class*="popup"]', '[class*="modal"]']:
-                if await page.locator(f'{sel}:visible').count() > 0:
-                    logger.info(f"[Weibo] Dialog/modal detected ({sel}), waiting for user...")
-                    captcha_found = True
-                    break
-
-        if captcha_found:
-            logger.info("[Weibo] >>> 验证码窗口已弹出，请手动完成验证（最多5分钟）")
-            logger.info("[Weibo] >>> 验证窗口关掉后我会自动继续发布")
-            # 等所有 iframe/dialog 消失
-            try:
-                await page.wait_for_function(
-                    """() => {
-                        const iframes = document.querySelectorAll('iframe');
-                        const dialogs = document.querySelectorAll('dialog, [role="dialog"], .modal, [class*="dialog"], [class*="popup"], [class*="modal"]');
-                        return iframes.length === 0 && dialogs.length === 0;
-                    }""",
-                    timeout=300_000,
-                )
-                logger.info("[Weibo] Captcha window closed, re-clicking send...")
-            except Exception:
-                return PublishResponse(success=False, error_message="验证码超时（5分钟未完成）")
-
-            # 验证码窗口关掉后，重新点击发送
-            await page.wait_for_timeout(1000)
-            publish_btn2 = page.locator('button:has-text("发送"):visible, a:has-text("发送"):visible')
-            if await publish_btn2.count() > 0:
-                await publish_btn2.first.click()
-                logger.info("[Weibo] Re-clicked send after captcha")
-                await page.wait_for_timeout(3000)
-            else:
-                publish_btn2 = page.locator('button:has-text("发布"):visible, a:has-text("发布"):visible')
-                if await publish_btn2.count() > 0:
-                    await publish_btn2.first.click()
-                    logger.info("[Weibo] Re-clicked publish after captcha")
-                    await page.wait_for_timeout(3000)
 
         await page.wait_for_timeout(3000)
 
