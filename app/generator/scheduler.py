@@ -107,7 +107,7 @@ async def generate_for_filtered(batch_size: int | None = None) -> dict:
         stmt = (
             select(Topic)
             .where(Topic.status == TopicStatus.FILTERED)
-            .order_by(Topic.priority.desc().nullslast())
+            .order_by(Topic.collected_at.desc())
             .limit(batch_size)
         )
         result = await session.execute(stmt)
