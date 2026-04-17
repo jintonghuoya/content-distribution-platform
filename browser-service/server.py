@@ -206,20 +206,31 @@ async def _publish_weibo(text: str) -> PublishResponse:
             await confirm_btn.first.click()
             await page.wait_for_timeout(2000)
 
-        # 检测验证码 — 同一个浏览器会话里等用户操作，不重新来
+        # 检测验证码弹窗 — 同一个浏览器会话里等用户操作
         for sel in captcha_selectors:
-            if await page.locator(f'{sel}:visible').count() > 0:
-                logger.info(f"[Weibo] Captcha detected ({sel}), waiting for user...")
-                logger.info("[Weibo] >>> 滑块验证窗口已弹出，请手动完成验证（最多5分钟）")
-                # 等验证码消失（用户拖完滑块后弹窗会关闭）
+            captcha_el = page.locator(f'{sel}:visible')
+            if await captcha_el.count() > 0:
+                logger.info(f"[Weibo] Captcha detected ({sel})")
+                logger.info("[Weibo] >>> 验证码窗口已弹出，请手动点选四个字完成验证（最多5分钟）")
+                # 等验证码弹窗消失（用户点完四个字后弹窗自动关闭）
                 try:
-                    await page.wait_for_function(
-                        "() => !document.querySelector('[class*=\"captcha\"], [class*=\"verify\"], [class*=\"slider\"], [class*=\"geetest\"]')",
-                        timeout=300_000,
-                    )
-                    logger.info("[Weibo] Captcha solved by user, continuing...")
+                    await captcha_el.first.wait_for(state="hidden", timeout=300_000)
+                    logger.info("[Weibo] Captcha window closed by user")
                 except Exception:
                     return PublishResponse(success=False, error_message="验证码超时（5分钟未完成）")
+
+                # 验证码通过后，重新点击发送按钮
+                logger.info("[Weibo] Re-clicking publish after captcha...")
+                await page.wait_for_timeout(1000)
+                publish_btn2 = page.locator('button:has-text("发送"):visible, a:has-text("发送"):visible')
+                if await publish_btn2.count() > 0:
+                    await publish_btn2.first.click()
+                    logger.info("[Weibo] Clicked send after captcha")
+                else:
+                    publish_btn2 = page.locator('button:has-text("发布"):visible, a:has-text("发布"):visible')
+                    if await publish_btn2.count() > 0:
+                        await publish_btn2.first.click()
+                        logger.info("[Weibo] Clicked publish after captcha")
                 break
 
         await page.wait_for_timeout(3000)
