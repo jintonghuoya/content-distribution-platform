@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     filter_llm_threshold: float = 0.0
 
     # Generator
-    generator_batch_size: int = 50
+    generator_batch_size: int = 3
 
     model_config = {"env_file": PROJECT_ROOT / ".env", "env_file_encoding": "utf-8"}
 
