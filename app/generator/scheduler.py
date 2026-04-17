@@ -41,7 +41,7 @@ async def generate_for_topic(
     topic_id: int,
     generator_name: str | None = None,
 ) -> list[GeneratedContent]:
-    """为单条 topic 生成内容（指定生成器或全部生成器）。
+    """为单条 topic 生成内容（指定生成器或默认只生成微博短文）。
 
     Returns:
         生成的 GeneratedContent 列表。
@@ -55,7 +55,9 @@ async def generate_for_topic(
             logger.warning(f"Generator not found: {generator_name}")
             return []
     else:
-        generators = registry.get_all()
+        # 默认只生成微博短文，省 token
+        gen = registry.get("social_post")
+        generators = [gen] if gen else registry.get_all()
 
     if not generators:
         logger.warning("No generators available")
