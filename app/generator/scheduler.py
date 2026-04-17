@@ -94,7 +94,9 @@ async def generate_for_filtered(batch_size: int | None = None) -> dict:
     if batch_size is None:
         batch_size = settings.generator_batch_size
 
-    generators = registry.get_all()
+    # 批量只生成社交媒体短文（微博帖子），不生成长文章
+    gen = registry.get("social_post")
+    generators = [gen] if gen else registry.get_all()
     if not generators:
         logger.warning("No generators available")
         return {"total": 0, "generated": 0}
