@@ -100,8 +100,8 @@ async def _check_login(platform: str) -> dict:
 async def _publish_weibo(text: str) -> PublishResponse:
     """通过浏览器发布微博。
 
-    使用有头模式(headless=False)以应对微博滑块验证码。
-    发布后如果检测到验证码弹窗，会暂停等用户手动完成验证（最多5分钟）。
+    优先用 headless 模式发布，如果遇到滑块验证码则自动降级到有头模式重试。
+    有头模式下会弹出浏览器窗口等用户手动完成验证（最多5分钟）。
     """
     from playwright.async_api import async_playwright
 
@@ -111,25 +111,22 @@ async def _publish_weibo(text: str) -> PublishResponse:
             error_message=f"微博登录态不存在: {WEIBO_STATE}，请先运行登录脚本",
         )
 
-    pw = await async_playwright().start()
-    browser = await pw.chromium.launch(headless=False)
-    context = await browser.new_context(
-        storage_state=str(WEIBO_STATE),
-        user_agent=(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        ),
-        viewport={"width": 1920, "height": 1080},
-    )
-    page = await context.new_page()
+    captcha_selectors = [
+        '[class*="captcha"]',
+        '[class*="verify"]',
+        '[class*="slider"]',
+        '[class*="geetest"]',
+        '[id*="captcha"]',
+        '[id*="verify"]',
+    ]
 
-    try:
+    async def _do_publish(page, wait_for_user: bool = False) -> tuple[bool, str]:
+        """执行发布流程，返回 (needs_captcha, error_or_empty)。"""
         logger.info("[Weibo] Opening weibo.com...")
         await page.goto("https://weibo.com/", wait_until="networkidle", timeout=30000)
 
         if "login" in page.url or "passport" in page.url:
-            return PublishResponse(success=False, error_message="微博登录态已过期")
+            return False, "微博登录态已过期"
 
         # 点击发布输入框
         logger.info("[Weibo] Clicking compose area...")
@@ -151,7 +148,7 @@ async def _publish_weibo(text: str) -> PublishResponse:
                 await hint.first.click()
                 await page.wait_for_timeout(500)
 
-        # 清空编辑框（防止上次残留内容拼接）
+        # 清空编辑框
         logger.info("[Weibo] Clearing compose area...")
         await page.keyboard.press("Control+a")
         await page.wait_for_timeout(100)
@@ -170,7 +167,7 @@ async def _publish_weibo(text: str) -> PublishResponse:
         await page.mouse.click(10, 10)
         await page.wait_for_timeout(500)
 
-        # 点击发布按钮 — 精确匹配绿色"发送"按钮
+        # 点击发布按钮
         logger.info("[Weibo] Clicking publish...")
         publish_btn = page.locator('button:has-text("发送"):visible, a:has-text("发送"):visible')
         btn_count = await publish_btn.count()
@@ -187,7 +184,6 @@ async def _publish_weibo(text: str) -> PublishResponse:
             logger.warning("[Weibo] No publish button found, trying Ctrl+Enter")
             await page.keyboard.press("Control+Enter")
 
-        # 等待页面响应
         await page.wait_for_timeout(2000)
 
         # 处理确认弹窗
@@ -197,36 +193,78 @@ async def _publish_weibo(text: str) -> PublishResponse:
             await confirm_btn.first.click()
             await page.wait_for_timeout(2000)
 
-        # 检测验证码/滑块弹窗 — 有头模式下等用户手动操作
-        captcha_selectors = [
-            '[class*="captcha"]',
-            '[class*="verify"]',
-            '[class*="slider"]',
-            '[class*="geetest"]',
-            '[id*="captcha"]',
-            '[id*="verify"]',
-        ]
+        # 检测验证码
         for sel in captcha_selectors:
             if await page.locator(f'{sel}:visible').count() > 0:
-                logger.info(f"[Weibo] Captcha detected ({sel}), waiting for user to solve...")
-                await page.screenshot(path=str(DATA_DIR / "weibo_step_captcha.png"))
-                # 等用户手动操作，最多5分钟
-                try:
-                    await page.wait_for_function(
-                        "() => !document.querySelector('[class*=\"captcha\"], [class*=\"verify\"], [class*=\"slider\"], [class*=\"geetest\"]')",
-                        timeout=300_000,
-                    )
-                    logger.info("[Weibo] Captcha resolved by user")
-                except Exception:
-                    logger.warning("[Weibo] Captcha timeout (5 min)")
-                break
+                logger.info(f"[Weibo] Captcha detected ({sel})")
+                if wait_for_user:
+                    logger.info("[Weibo] Waiting for user to solve captcha (max 5 min)...")
+                    await page.screenshot(path=str(DATA_DIR / "weibo_step_captcha.png"))
+                    try:
+                        await page.wait_for_function(
+                            "() => !document.querySelector('[class*=\"captcha\"], [class*=\"verify\"], [class*=\"slider\"], [class*=\"geetest\"]')",
+                            timeout=300_000,
+                        )
+                        logger.info("[Weibo] Captcha resolved by user")
+                        # 验证码解决后继续等发布完成
+                        await page.wait_for_timeout(3000)
+                        break
+                    except Exception:
+                        return False, "验证码超时（5分钟未完成）"
+                else:
+                    return True, ""  # 需要降级到有头模式
+        else:
+            await page.wait_for_timeout(3000)
 
-        await page.wait_for_timeout(3000)
+        return False, ""  # 发布成功，无错误
 
-        # 截图保存发布后的状态
+    # 第一次尝试：headless 模式
+    logger.info("[Weibo] Trying headless mode...")
+    pw = await async_playwright().start()
+    browser = await pw.chromium.launch(headless=True)
+    context = await browser.new_context(
+        storage_state=str(WEIBO_STATE),
+        user_agent=(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+        viewport={"width": 1920, "height": 1080},
+    )
+    page = await context.new_page()
+
+    try:
+        needs_captcha, error = await _do_publish(page, wait_for_user=False)
+
+        if error:
+            return PublishResponse(success=False, error_message=error)
+
+        if needs_captcha:
+            # headless 遇到验证码，降级到有头模式重试
+            logger.info("[Weibo] Captcha in headless mode, retrying with visible browser...")
+            await browser.close()
+            await pw.stop()
+
+            pw = await async_playwright().start()
+            browser = await pw.chromium.launch(headless=False)
+            context = await browser.new_context(
+                storage_state=str(WEIBO_STATE),
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+                viewport={"width": 1920, "height": 1080},
+            )
+            page = await context.new_page()
+
+            _, error = await _do_publish(page, wait_for_user=True)
+            if error:
+                return PublishResponse(success=False, error_message=error)
+
+        # 检查发布后状态
         await page.screenshot(path=str(DATA_DIR / "weibo_step4_after_publish.png"))
 
-        # 检查错误
         error_el = page.locator('[class*="error"], [class*="fail"]')
         if await error_el.count() > 0:
             error_text = await error_el.first.text_content()
@@ -239,7 +277,7 @@ async def _publish_weibo(text: str) -> PublishResponse:
         with open(WEIBO_STATE, "w") as f:
             json.dump(new_state, f)
 
-        logger.info(f"[Weibo] Published successfully")
+        logger.info("[Weibo] Published successfully")
         return PublishResponse(success=True, platform_url=page.url)
 
     except Exception as e:
