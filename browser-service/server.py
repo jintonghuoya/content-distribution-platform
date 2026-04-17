@@ -98,7 +98,11 @@ async def _check_login(platform: str) -> dict:
 
 
 async def _publish_weibo(text: str) -> PublishResponse:
-    """通过浏览器发布微博。"""
+    """通过浏览器发布微博。
+
+    使用有头模式(headless=False)以应对微博滑块验证码。
+    发布后如果检测到验证码弹窗，会暂停等用户手动完成验证（最多5分钟）。
+    """
     from playwright.async_api import async_playwright
 
     if not WEIBO_STATE.exists():
@@ -107,7 +111,8 @@ async def _publish_weibo(text: str) -> PublishResponse:
             error_message=f"微博登录态不存在: {WEIBO_STATE}，请先运行登录脚本",
         )
 
-    pw, browser = await _get_browser()
+    pw = await async_playwright().start()
+    browser = await pw.chromium.launch(headless=False)
     context = await browser.new_context(
         storage_state=str(WEIBO_STATE),
         user_agent=(
@@ -182,15 +187,39 @@ async def _publish_weibo(text: str) -> PublishResponse:
             logger.warning("[Weibo] No publish button found, trying Ctrl+Enter")
             await page.keyboard.press("Control+Enter")
 
-        # 等待页面响应（可能出现确认弹窗）
+        # 等待页面响应
         await page.wait_for_timeout(2000)
 
-        # 处理可能的确认弹窗
+        # 处理确认弹窗
         confirm_btn = page.locator('button:has-text("确认"):visible, button:has-text("确定"):visible')
         if await confirm_btn.count() > 0:
             logger.info("[Weibo] Found confirm dialog, clicking...")
             await confirm_btn.first.click()
             await page.wait_for_timeout(2000)
+
+        # 检测验证码/滑块弹窗 — 有头模式下等用户手动操作
+        captcha_selectors = [
+            '[class*="captcha"]',
+            '[class*="verify"]',
+            '[class*="slider"]',
+            '[class*="geetest"]',
+            '[id*="captcha"]',
+            '[id*="verify"]',
+        ]
+        for sel in captcha_selectors:
+            if await page.locator(f'{sel}:visible').count() > 0:
+                logger.info(f"[Weibo] Captcha detected ({sel}), waiting for user to solve...")
+                await page.screenshot(path=str(DATA_DIR / "weibo_step_captcha.png"))
+                # 等用户手动操作，最多5分钟
+                try:
+                    await page.wait_for_function(
+                        "() => !document.querySelector('[class*=\"captcha\"], [class*=\"verify\"], [class*=\"slider\"], [class*=\"geetest\"]')",
+                        timeout=300_000,
+                    )
+                    logger.info("[Weibo] Captcha resolved by user")
+                except Exception:
+                    logger.warning("[Weibo] Captcha timeout (5 min)")
+                break
 
         await page.wait_for_timeout(3000)
 
